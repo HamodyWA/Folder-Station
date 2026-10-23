@@ -1,0 +1,6 @@
+{
+  "name": "Folder Station",
+  "description": "Customizable native Android home-screen folder widgets for organizing applications and games.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
