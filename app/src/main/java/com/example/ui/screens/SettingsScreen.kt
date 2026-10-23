@@ -86,6 +86,7 @@ fun SettingsScreen(
     var showFaqDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf<String?>(null) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
 
     Scaffold(
@@ -181,14 +182,18 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     Icon(Icons.Default.Refresh, contentDescription = null, tint = ElectricBlue)
                                     Spacer(Modifier.width(12.dp))
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(stringResource(R.string.auto_update), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                        Text("Refresh widgets immediately on edits", color = Color.LightGray, fontSize = 12.sp)
+                                        Text(stringResource(R.string.auto_update_desc), color = Color.LightGray, fontSize = 12.sp)
                                     }
                                 }
+                                Spacer(Modifier.width(8.dp))
                                 Switch(
                                     checked = autoUpdateEnabled,
                                     onCheckedChange = { autoUpdateEnabled = it },
@@ -250,6 +255,19 @@ fun SettingsScreen(
                     )
                 }
 
+                // Section: About App
+                item {
+                    Text(stringResource(R.string.about_app), fontSize = 13.sp, color = NeonCyan, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+
+                    SettingsRowCard(
+                        icon = Icons.Default.Info,
+                        title = stringResource(R.string.about_app),
+                        subtitle = stringResource(R.string.about_desc),
+                        onClick = { showAboutDialog = true }
+                    )
+                }
+
                 item {
                     Spacer(Modifier.height(20.dp))
                     Box(
@@ -257,7 +275,7 @@ fun SettingsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Folder Station v1.0 • Native Android Widget Engine",
+                            text = "Folder Station • Native Android Widget Engine",
                             fontSize = 11.sp,
                             color = Color.DarkGray
                         )
@@ -383,6 +401,85 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showImportDialog = false }) {
                     Text("Cancel", color = Color.LightGray)
+                }
+            }
+        )
+    }
+
+    // About App Dialog
+    if (showAboutDialog) {
+        val appVersion = remember {
+            try {
+                val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                pInfo.versionName ?: "1.0.0"
+            } catch (e: Exception) {
+                "1.0.0"
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_folder_station_logo),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "Folder Station",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Application Name:", color = Color.Gray, fontSize = 13.sp)
+                        Text("Folder Station", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Version:", color = Color.Gray, fontSize = 13.sp)
+                        Text(appVersion, color = NeonCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Developer:", color = Color.Gray, fontSize = 13.sp)
+                        Text("Houssam Prime", color = ElectricBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Credits:", color = Color.Gray, fontSize = 13.sp)
+                        Text("Salah Prime", color = GlowingViolet, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            },
+            containerColor = BrandNavyCard,
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) {
+                    Text("Back", color = ElectricBlue, fontWeight = FontWeight.Bold)
                 }
             }
         )

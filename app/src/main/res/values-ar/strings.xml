@@ -55,4 +55,9 @@
     <string name="step_1">1. اضغط مطولاً على منطقة فارغة في الشاشة الرئيسية</string>
     <string name="step_2">2. اختر الأدوات (Widgets)</string>
     <string name="step_3">3. اسحب Folder Station إلى شاشتك</string>
+    <string name="auto_update_desc">تحديث فوري لودجات الشاشة عند كل تعديل</string>
+    <string name="about_app">حول التطبيق</string>
+    <string name="about_desc">إصدار التطبيق، المطور، وحقوق العمل</string>
+    <string name="developer_label">المطور</string>
+    <string name="credits_label">الشكر والتقدير</string>
 </resources>

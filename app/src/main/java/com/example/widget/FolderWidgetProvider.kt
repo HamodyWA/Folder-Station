@@ -90,28 +90,54 @@ class FolderWidgetProvider : AppWidgetProvider() {
                     val dao = AppDatabase.getInstance(context).folderDao()
 
                     // Resolve bound folder for this specific widget ID
-                    val folderId = dao.getFolderIdForWidgetSync(appWidgetId)
+                    var folderId = dao.getFolderIdForWidgetSync(appWidgetId)
                     val folder = if (!folderId.isNullOrBlank()) {
                         dao.getFolderByIdSync(folderId)
                     } else {
                         // Fallback: search in legacy or first folder
-                        dao.getAllFoldersSync().firstOrNull { it.getWidgetIdList().contains(appWidgetId) }
+                        val matched = dao.getAllFoldersSync().firstOrNull { it.getWidgetIdList().contains(appWidgetId) }
                             ?: dao.getAllFoldersSync().firstOrNull()
+
+                        // Auto-bind to ensure future saves specifically target this widget
+                        if (matched != null) {
+                            dao.bindWidget(WidgetBindingEntity(widgetId = appWidgetId, folderId = matched.id))
+                        }
+                        matched
                     } ?: FolderEntity(name = context.getString(R.string.app_name))
+
+                    // Inspect current widget dimensions from launcher resize handles
+                    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+                    val density = context.resources.displayMetrics.density
+                    val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+                    val minHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+
+                    val widthPx = if (minWidthDp > 0) ((minWidthDp * density).toInt()).coerceIn(200, 1440) else 450
+                    val heightPx = if (minHeightDp > 0) ((minHeightDp * density).toInt()).coerceIn(200, 1440) else 450
+
+                    // Adaptive column selection: respect user preference, adapt if resized very narrow/wide
+                    val effectiveColumns = when {
+                        folder.folderShape == FolderEntity.ShapeType.CIRCLE.name -> 3
+                        minWidthDp in 1..155 && folder.columns > 2 -> 2 // Auto-adapt to avoid crushed icons
+                        minWidthDp >= 320 && folder.columns == 3 && minHeightDp in 1..140 -> 4 // Wide dock banner
+                        else -> folder.columns
+                    }
 
                     // Select layout resource matching shape and grid columns
                     val layoutId = when {
                         folder.folderShape == FolderEntity.ShapeType.CIRCLE.name -> {
                             R.layout.folder_widget_layout_circular
                         }
-                        folder.columns == 1 -> {
+                        effectiveColumns == 1 -> {
                             R.layout.folder_widget_layout_1col
                         }
-                        folder.columns == 2 -> {
+                        effectiveColumns == 2 -> {
                             R.layout.folder_widget_layout_2col
                         }
-                        folder.columns == 4 -> {
+                        effectiveColumns == 4 -> {
                             R.layout.folder_widget_layout_4col
+                        }
+                        effectiveColumns == 5 -> {
+                            R.layout.folder_widget_layout_5col
                         }
                         else -> {
                             R.layout.folder_widget_layout
@@ -120,16 +146,17 @@ class FolderWidgetProvider : AppWidgetProvider() {
 
                     val views = RemoteViews(context.packageName, layoutId)
 
-                    // 1. Render custom background with exact shape and styling
+                    // 1. Render custom background with exact shape, custom frame image, and styling
                     val bgBitmap = WidgetBitmapRenderer.renderBackground(
-                        widthPx = 450,
-                        heightPx = 450,
+                        widthPx = widthPx,
+                        heightPx = heightPx,
                         folder = folder
                     )
                     views.setImageViewBitmap(R.id.widget_bg_image, bgBitmap)
 
                     // 2. Configure Header
-                    if (folder.showTitle) {
+                    val hideHeaderDueToSmallHeight = minHeightDp in 1..100
+                    if (folder.showTitle && !hideHeaderDueToSmallHeight) {
                         views.setViewVisibility(R.id.widget_header, View.VISIBLE)
                         views.setTextViewText(R.id.widget_title, folder.name)
                         try {

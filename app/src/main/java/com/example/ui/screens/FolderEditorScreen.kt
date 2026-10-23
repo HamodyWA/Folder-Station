@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -28,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
@@ -36,6 +43,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pentagon
 import androidx.compose.material.icons.filled.SportsEsports
@@ -71,9 +79,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -92,6 +99,7 @@ import com.example.ui.theme.BrandNavyElevated
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.GlowingViolet
 import com.example.ui.theme.NeonCyan
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,12 +110,33 @@ fun FolderEditorScreen(
     onPin: (FolderEntity) -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var showAppPicker by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableIntStateOf(1) } // 0: Apps, 1: Shape, 2: Grid, 3: Size, 4: Colors
+    var activeTab by remember { mutableIntStateOf(1) } // 0: Apps, 1: Shape, 2: Grid, 3: Size, 4: Colors, 5: Frame
     var hexInput by remember(folder.backgroundColorHex) { mutableStateOf(folder.backgroundColorHex) }
 
     val currentApps = folder.getApps()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
+
+    // Photo picker for custom widget decorative frame
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val targetFile = File(context.filesDir, "frame_${folder.id}.png")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    targetFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                viewModel.updateEditingFolder(folder.copy(frameImagePath = targetFile.absolutePath))
+                Toast.makeText(context, "Frame image loaded!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Scaffold(
         containerColor = BrandNavyDark,
@@ -115,7 +144,7 @@ fun FolderEditorScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Edit Widget",
+                        text = stringResource(R.string.edit_folder),
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         fontSize = 18.sp
@@ -130,9 +159,7 @@ fun FolderEditorScreen(
                     Button(
                         onClick = onSave,
                         shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 6.dp),
                         modifier = Modifier
                             .padding(end = 8.dp)
@@ -142,7 +169,7 @@ fun FolderEditorScreen(
                             )
                             .testTag("save_widget_btn")
                     ) {
-                        Text("Save", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        Text(stringResource(R.string.save_folder), fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BrandNavyDark)
@@ -164,7 +191,7 @@ fun FolderEditorScreen(
                 // 1. Folder Name Input Card
                 item {
                     Text(
-                        text = "Folder Name",
+                        text = stringResource(R.string.folder_name),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF94A3B8)
@@ -179,33 +206,40 @@ fun FolderEditorScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedTextField(
                                 value = folder.name,
-                                onValueChange = {
-                                    if (it.length <= 20) {
-                                        viewModel.updateEditingFolder(folder.copy(name = it))
+                                onValueChange = { newName ->
+                                    if (newName.length <= 25) {
+                                        viewModel.updateEditingFolder(folder.copy(name = newName))
                                     }
                                 },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                placeholder = { Text("Enter folder name...", color = Color.Gray) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("folder_name_input"),
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
                                     focusedBorderColor = Color.Transparent,
                                     unfocusedBorderColor = Color.Transparent,
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                )
+                                    cursorColor = NeonCyan
+                                ),
+                                placeholder = {
+                                    Text(stringResource(R.string.folder_name_hint), color = Color.Gray)
+                                },
+                                singleLine = true
                             )
-
-                            Icon(Icons.Default.Edit, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit Name",
+                                tint = NeonCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "${folder.name.length}/20",
+                                text = "${folder.name.length}/25",
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
@@ -220,7 +254,8 @@ fun FolderEditorScreen(
                         Triple(1, "Shape", Icons.Default.ViewInAr),
                         Triple(2, "Grid", Icons.Default.Pentagon),
                         Triple(3, "Size", Icons.Default.FormatSize),
-                        Triple(4, "Colors", Icons.Default.Palette)
+                        Triple(4, "Colors", Icons.Default.Palette),
+                        Triple(5, "Frame", Icons.Default.Image)
                     )
 
                     Row(
@@ -234,14 +269,8 @@ fun FolderEditorScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(
-                                        if (isSelected) ElectricBlue else BrandNavyCard
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) NeonCyan else BrandNavyBorder,
-                                        RoundedCornerShape(14.dp)
-                                    )
+                                    .background(if (isSelected) ElectricBlue else BrandNavyCard)
+                                    .border(1.dp, if (isSelected) NeonCyan else BrandNavyBorder, RoundedCornerShape(14.dp))
                                     .clickable { activeTab = index }
                                     .padding(horizontal = 14.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center
@@ -276,7 +305,7 @@ fun FolderEditorScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${currentApps.size} Applications Included",
+                                    text = "${currentApps.size} Applications",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -298,94 +327,84 @@ fun FolderEditorScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(130.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(BrandNavyCard)
-                                        .clickable { showAppPicker = true },
+                                        .padding(24.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(Icons.Default.Add, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(32.dp))
-                                        Spacer(Modifier.height(6.dp))
-                                        Text("Tap to select applications", color = Color.LightGray, fontSize = 13.sp)
-                                    }
+                                    Text("No apps in this folder yet. Tap 'Add Apps' to select.", color = Color.Gray, fontSize = 13.sp)
                                 }
                             }
                         } else {
                             items(currentApps.size) { index ->
                                 val appItem = currentApps[index]
-                                val iconBitmap = remember(appItem.packageName) {
-                                    viewModel.appScanner.getAppIcon(appItem.packageName, 96)
-                                }
+                                val iconBitmap = viewModel.appScanner.getAppIcon(appItem.packageName, 72)
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(BrandNavyCard)
-                                        .border(1.dp, BrandNavyBorder, RoundedCornerShape(12.dp))
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = BrandNavyCard),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
                                 ) {
-                                    if (iconBitmap != null) {
-                                        Image(
-                                            bitmap = iconBitmap.asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                        )
-                                    } else {
-                                        Image(
-                                            painter = painterResource(R.drawable.ic_folder_station_logo),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    }
-
-                                    Spacer(Modifier.width(10.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = appItem.getDisplayName(),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = appItem.packageName,
-                                            fontSize = 11.sp,
-                                            color = Color.Gray,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = { viewModel.moveAppInEditingFolder(index, index - 1) },
-                                        enabled = index > 0
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.ArrowUpward, contentDescription = "Up", tint = if (index > 0) Color.White else Color.DarkGray)
-                                    }
+                                        if (iconBitmap != null) {
+                                            Image(
+                                                bitmap = iconBitmap.asImageBitmap(),
+                                                contentDescription = appItem.getDisplayName(),
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .background(ElectricBlue.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Icons.Default.SportsEsports, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(20.dp))
+                                            }
+                                        }
 
-                                    IconButton(
-                                        onClick = { viewModel.moveAppInEditingFolder(index, index + 1) },
-                                        enabled = index < currentApps.size - 1
-                                    ) {
-                                        Icon(Icons.Default.ArrowDownward, contentDescription = "Down", tint = if (index < currentApps.size - 1) Color.White else Color.DarkGray)
-                                    }
+                                        Spacer(Modifier.width(12.dp))
 
-                                    IconButton(
-                                        onClick = { viewModel.removeAppFromEditingFolder(appItem.packageName) }
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color(0xFFFF5252))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(appItem.getDisplayName(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text(appItem.packageName, color = Color.Gray, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+
+                                        IconButton(
+                                            onClick = { if (index > 0) viewModel.moveAppInEditingFolder(index, index - 1) },
+                                            enabled = index > 0,
+                                            modifier = Modifier.size(30.dp)
+                                        ) {
+                                            Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up", tint = if (index > 0) Color.White else Color.DarkGray)
+                                        }
+
+                                        IconButton(
+                                            onClick = { if (index < currentApps.size - 1) viewModel.moveAppInEditingFolder(index, index + 1) },
+                                            enabled = index < currentApps.size - 1,
+                                            modifier = Modifier.size(30.dp)
+                                        ) {
+                                            Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", tint = if (index < currentApps.size - 1) Color.White else Color.DarkGray)
+                                        }
+
+                                        IconButton(
+                                            onClick = { viewModel.removeAppFromEditingFolder(appItem.packageName) },
+                                            modifier = Modifier.size(30.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color(0xFFFF5252))
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    1 -> { // Shape Tab (Exactly 3x3 Cards as in reference mockup!)
+                    1 -> { // Shape Tab (9 Shapes matching reference UI)
                         item {
                             Text("Choose Shape", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             Spacer(Modifier.height(8.dp))
@@ -402,7 +421,6 @@ fun FolderEditorScreen(
                                 Triple(FolderEntity.ShapeType.BORDER, "Border", listOf(Color(0xFFEC4899), Color(0xFF8B5CF6)))
                             )
 
-                            // 3x3 Grid of Shape Cards
                             val rows = shapesList.chunked(3)
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 rows.forEach { rowShapes ->
@@ -435,154 +453,6 @@ fun FolderEditorScreen(
                                         }
                                     }
                                 }
-                            }
-                        }
-
-                        // Background Color Section
-                        item {
-                            Spacer(Modifier.height(8.dp))
-                            Text("Background Color", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Spacer(Modifier.height(8.dp))
-
-                            val palette = listOf(
-                                "#0C112A", "#11162E", "#EF4444", "#F97316",
-                                "#F59E0B", "#10B981", "#06B6D4", "#0EA5E9",
-                                "#388BFD", "#8B5CF6", "#EC4899", "#FFFFFF"
-                            )
-
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(palette) { hex ->
-                                    val isSelected = folder.backgroundColorHex.equals(hex, ignoreCase = true)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(android.graphics.Color.parseColor(hex)))
-                                            .border(2.dp, if (isSelected) NeonCyan else Color.Transparent, CircleShape)
-                                            .clickable {
-                                                viewModel.updateEditingFolder(folder.copy(backgroundColorHex = hex))
-                                                hexInput = hex
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (isSelected) {
-                                            Icon(
-                                                Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = if (hex == "#FFFFFF") Color.Black else Color.White,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Custom Color Bar + Hex Pill
-                        item {
-                            Text("Custom Color", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
-                            Spacer(Modifier.height(6.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(BrandNavyCard)
-                                        .border(1.dp, BrandNavyBorder, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Colorize, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(18.dp))
-                                }
-
-                                Spacer(Modifier.width(10.dp))
-
-                                // Gradient Color Bar
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(34.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(
-                                                    Color(0xFF388BFD),
-                                                    Color(0xFF8B5CF6),
-                                                    Color(0xFFEC4899),
-                                                    Color(0xFFF97316),
-                                                    Color(0xFF10B981)
-                                                )
-                                            )
-                                        )
-                                        .clickable {
-                                            val rainbow = listOf("#388BFD", "#7B3FE4", "#8B5CF6", "#EC4899", "#10B981")
-                                            val pick = rainbow.random()
-                                            viewModel.updateEditingFolder(folder.copy(backgroundColorHex = pick, gradientEndColorHex = "#1F153E"))
-                                            hexInput = pick
-                                        }
-                                )
-
-                                Spacer(Modifier.width(10.dp))
-
-                                // Hex display pill
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(BrandNavyCard)
-                                        .border(1.dp, BrandNavyBorder, RoundedCornerShape(10.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = folder.backgroundColorHex.uppercase(),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-
-                        // Opacity Slider
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Opacity", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                Text("${(folder.backgroundOpacity * 100).toInt()}%", fontSize = 13.sp, color = NeonCyan, fontWeight = FontWeight.Bold)
-                            }
-
-                            Slider(
-                                value = folder.backgroundOpacity,
-                                onValueChange = { viewModel.updateEditingFolder(folder.copy(backgroundOpacity = it)) },
-                                valueRange = 0.1f..1.0f,
-                                colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = ElectricBlue)
-                            )
-                        }
-
-                        // Border & Shadow
-                        item {
-                            Text("Border & Shadow", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Spacer(Modifier.height(6.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Border Thickness: ${folder.borderThicknessDp} dp", color = Color.LightGray, fontSize = 12.sp)
-                                Slider(
-                                    value = folder.borderThicknessDp.toFloat(),
-                                    onValueChange = { viewModel.updateEditingFolder(folder.copy(borderThicknessDp = it.toInt())) },
-                                    valueRange = 0f..6f,
-                                    steps = 5,
-                                    modifier = Modifier.width(180.dp),
-                                    colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = ElectricBlue)
-                                )
                             }
                         }
                     }
@@ -699,16 +569,167 @@ fun FolderEditorScreen(
                         }
 
                         item {
+                            Text("Corner Radius: ${folder.cornerRadiusDp} dp", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Slider(
+                                value = folder.cornerRadiusDp.toFloat(),
+                                onValueChange = { viewModel.updateEditingFolder(folder.copy(cornerRadiusDp = it.toInt())) },
+                                valueRange = 0f..40f,
+                                colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = ElectricBlue)
+                            )
+                        }
+                    }
+
+                    4 -> { // Colors Tab (Comprehensive Palette & Themes)
+                        item {
+                            Text("Color Themes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(8.dp))
+
+                            val themes = listOf(
+                                Triple("Midnight", "#090D1E", "#192040"),
+                                Triple("Ocean", "#04152D", "#0D3B66"),
+                                Triple("Neon Blue", "#0B1B3D", "#00E5FF"),
+                                Triple("Cyber Purple", "#16082B", "#8B5CF6"),
+                                Triple("Emerald", "#062319", "#10B981"),
+                                Triple("Sunset", "#2B0B1E", "#F97316"),
+                                Triple("Rose Gold", "#2B141E", "#FB7185"),
+                                Triple("AMOLED Black", "#000000", "#0B0B0E"),
+                                Triple("Minimal Light", "#E2E8F0", "#F8FAFC")
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                themes.forEach { (name, startHex, endHex) ->
+                                    val isSelected = folder.backgroundColorHex.equals(startHex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(
+                                                        Color(android.graphics.Color.parseColor(startHex)),
+                                                        Color(android.graphics.Color.parseColor(endHex))
+                                                    )
+                                                )
+                                            )
+                                            .border(if (isSelected) 2.dp else 1.dp, if (isSelected) NeonCyan else Color.Transparent, RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                viewModel.updateEditingFolder(
+                                                    folder.copy(
+                                                        backgroundColorHex = startHex,
+                                                        isGradient = true,
+                                                        gradientEndColorHex = endHex
+                                                    )
+                                                )
+                                                hexInput = startHex
+                                            }
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Preset Color Palette", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(8.dp))
+
+                            val fullPalette = listOf(
+                                "#000000", "#050505", "#1E1E24", "#FFFFFF", "#D1D5DB",
+                                "#0A1128", "#1D4ED8", "#38BDF8", "#388BFD", "#00E5FF",
+                                "#14B8A6", "#22C55E", "#10B981", "#6EE7B7", "#84CC16",
+                                "#EAB308", "#F59E0B", "#F97316", "#FB7185", "#EF4444",
+                                "#F43F5E", "#EC4899", "#D946EF", "#A855F7", "#8B5CF6",
+                                "#C084FC", "#78350F"
+                            )
+
+                            val paletteRows = fullPalette.chunked(9)
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                paletteRows.forEach { rowHexes ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        rowHexes.forEach { hex ->
+                                            val isSelected = folder.backgroundColorHex.equals(hex, ignoreCase = true)
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(android.graphics.Color.parseColor(hex)))
+                                                    .border(2.dp, if (isSelected) NeonCyan else Color.Transparent, CircleShape)
+                                                    .clickable {
+                                                        viewModel.updateEditingFolder(folder.copy(backgroundColorHex = hex))
+                                                        hexInput = hex
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = if (hex == "#FFFFFF" || hex == "#D1D5DB") Color.Black else Color.White,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Custom HEX Input & Opacity
+                        item {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Custom HEX Color", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
+                            Spacer(Modifier.height(6.dp))
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Show Folder Title", color = Color.White, fontSize = 14.sp)
-                                Switch(
-                                    checked = folder.showTitle,
-                                    onCheckedChange = { viewModel.updateEditingFolder(folder.copy(showTitle = it)) },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = NeonCyan, checkedTrackColor = ElectricBlue)
+                                OutlinedTextField(
+                                    value = hexInput,
+                                    onValueChange = { input ->
+                                        hexInput = input
+                                        if (input.startsWith("#") && (input.length == 7 || input.length == 9)) {
+                                            try {
+                                                android.graphics.Color.parseColor(input)
+                                                viewModel.updateEditingFolder(folder.copy(backgroundColorHex = input))
+                                            } catch (e: Exception) {
+                                                // Invalid hex
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = NeonCyan,
+                                        unfocusedBorderColor = BrandNavyBorder
+                                    ),
+                                    placeholder = { Text("#388BFD", color = Color.Gray) },
+                                    singleLine = true
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            try {
+                                                Color(android.graphics.Color.parseColor(folder.backgroundColorHex))
+                                            } catch (e: Exception) {
+                                                ElectricBlue
+                                            }
+                                        )
+                                        .border(1.dp, Color.White, RoundedCornerShape(10.dp))
                                 )
                             }
                         }
@@ -719,7 +740,55 @@ fun FolderEditorScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Show App Labels", color = Color.White, fontSize = 14.sp)
+                                Text(stringResource(R.string.opacity), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                Text("${(folder.backgroundOpacity * 100).toInt()}%", fontSize = 13.sp, color = NeonCyan, fontWeight = FontWeight.Bold)
+                            }
+
+                            Slider(
+                                value = folder.backgroundOpacity,
+                                onValueChange = { viewModel.updateEditingFolder(folder.copy(backgroundOpacity = it)) },
+                                valueRange = 0.1f..1.0f,
+                                colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = ElectricBlue)
+                            )
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Border Thickness: ${folder.borderThicknessDp} dp", color = Color.LightGray, fontSize = 12.sp)
+                                Slider(
+                                    value = folder.borderThicknessDp.toFloat(),
+                                    onValueChange = { viewModel.updateEditingFolder(folder.copy(borderThicknessDp = it.toInt())) },
+                                    valueRange = 0f..6f,
+                                    steps = 5,
+                                    modifier = Modifier.width(180.dp),
+                                    colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = ElectricBlue)
+                                )
+                            }
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(stringResource(R.string.show_title), color = Color.White, fontSize = 13.sp)
+                                Switch(
+                                    checked = folder.showTitle,
+                                    onCheckedChange = { viewModel.updateEditingFolder(folder.copy(showTitle = it)) },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = NeonCyan, checkedTrackColor = ElectricBlue)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(stringResource(R.string.show_labels), color = Color.White, fontSize = 13.sp)
                                 Switch(
                                     checked = folder.showAppLabels,
                                     onCheckedChange = { viewModel.updateEditingFolder(folder.copy(showAppLabels = it)) },
@@ -729,67 +798,108 @@ fun FolderEditorScreen(
                         }
                     }
 
-                    4 -> { // Colors Tab
+                    5 -> { // Frame Tab (Custom Widget Frame Images)
                         item {
-                            Text("Color Themes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Spacer(Modifier.height(8.dp))
+                            Text("Custom Widget Frame Image", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Select a photo from your gallery to use as decorative border or frame background.", fontSize = 12.sp, color = Color.LightGray)
+                            Spacer(Modifier.height(10.dp))
 
-                            val themes = listOf(
-                                Triple("Midnight", "#0C112A", "#1F153E"),
-                                Triple("Ocean", "#081B26", "#0E384D"),
-                                Triple("Neon Blue", "#0A173B", "#103E78"),
-                                Triple("Cyber Purple", "#1A0E38", "#42125A"),
-                                Triple("Sunset", "#2B1123", "#4A1B29"),
-                                Triple("AMOLED Black", "#05070E", "#0B0E1B")
-                            )
+                            if (!folder.frameImagePath.isNullOrBlank()) {
+                                val file = File(folder.frameImagePath)
+                                val bmp = if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
 
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                themes.forEach { (name, startHex, endHex) ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                viewModel.updateEditingFolder(
-                                                    folder.copy(
-                                                        backgroundColorHex = startHex,
-                                                        isGradient = true,
-                                                        gradientEndColorHex = endHex
-                                                    )
-                                                )
-                                            },
-                                        colors = CardDefaults.cardColors(containerColor = BrandNavyCard),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = BrandNavyCard),
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (bmp != null) {
+                                                Image(
+                                                    bitmap = bmp.asImageBitmap(),
+                                                    contentDescription = "Frame Preview",
                                                     modifier = Modifier
-                                                        .size(28.dp)
-                                                        .clip(CircleShape)
-                                                        .background(
-                                                            Brush.linearGradient(
-                                                                listOf(
-                                                                    Color(android.graphics.Color.parseColor(startHex)),
-                                                                    Color(android.graphics.Color.parseColor(endHex))
-                                                                )
-                                                            )
-                                                        )
+                                                        .size(64.dp)
+                                                        .clip(RoundedCornerShape(10.dp))
                                                 )
-                                                Spacer(Modifier.width(10.dp))
-                                                Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                                             }
-
-                                            if (folder.backgroundColorHex.equals(startHex, ignoreCase = true)) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = NeonCyan)
+                                            Spacer(Modifier.width(14.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("Frame Image Active", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text(file.name, color = Color.Gray, fontSize = 11.sp, maxLines = 1)
                                             }
                                         }
+
+                                        Spacer(Modifier.height(14.dp))
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Button(
+                                                onClick = {
+                                                    photoPickerLauncher.launch(
+                                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                                    )
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Change Image", fontSize = 12.sp)
+                                            }
+
+                                            Button(
+                                                onClick = {
+                                                    viewModel.updateEditingFolder(folder.copy(frameImagePath = null))
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252).copy(alpha = 0.2f)),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text("Remove", color = Color(0xFFFF5252), fontSize = 12.sp)
+                                            }
+                                        }
+
+                                        Spacer(Modifier.height(14.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Frame Opacity", color = Color.LightGray, fontSize = 12.sp)
+                                            Text("${(folder.frameOpacity * 100).toInt()}%", color = NeonCyan, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                        Slider(
+                                            value = folder.frameOpacity,
+                                            onValueChange = { viewModel.updateEditingFolder(folder.copy(frameOpacity = it)) },
+                                            valueRange = 0.1f..1.0f,
+                                            colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = ElectricBlue)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            photoPickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            )
+                                        },
+                                    colors = CardDefaults.cardColors(containerColor = BrandNavyCard),
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(28.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(36.dp))
+                                        Spacer(Modifier.height(10.dp))
+                                        Text("Select Image from Gallery", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("Will be clipped to the widget shape", color = Color.Gray, fontSize = 11.sp)
                                     }
                                 }
                             }
@@ -802,7 +912,7 @@ fun FolderEditorScreen(
                 }
             }
 
-            // Pinned Floating Live Preview matching bottom of center screen!
+            // Pinned Floating Live Preview
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -929,6 +1039,13 @@ fun LiveWidgetPreviewCard(
         else -> folder.cornerRadiusDp.dp
     }
 
+    val frameBmp = remember(folder.frameImagePath) {
+        if (!folder.frameImagePath.isNullOrBlank()) {
+            val file = File(folder.frameImagePath)
+            if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+        } else null
+    }
+
     Card(
         modifier = Modifier
             .width(220.dp)
@@ -937,85 +1054,102 @@ fun LiveWidgetPreviewCard(
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = androidx.compose.foundation.BorderStroke(folder.borderThicknessDp.dp, borderColor)
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Brush.verticalGradient(listOf(bgColor, endColor)))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            if (folder.showTitle) {
-                Row(
+            // Draw decorative frame image if active
+            if (frameBmp != null) {
+                Image(
+                    bitmap = frameBmp.asImageBitmap(),
+                    contentDescription = null,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.SportsEsports,
-                        contentDescription = null,
-                        tint = NeonCyan,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = folder.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(radius)),
+                    alpha = folder.frameOpacity
+                )
             }
 
-            val maxDisplay = (folder.columns * folder.rows).coerceIn(1, 9)
-            val displayApps = apps.take(maxDisplay)
-
-            if (displayApps.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No apps selected", fontSize = 11.sp, color = Color.Gray)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                if (folder.showTitle) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.SportsEsports,
+                            contentDescription = null,
+                            tint = NeonCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = folder.name,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-            } else {
-                val rows = displayApps.chunked(folder.columns.coerceAtLeast(1))
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    rows.forEach { rowApps ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            rowApps.forEach { item ->
-                                val bmp = getIcon(item.packageName)
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    if (bmp != null) {
-                                        Image(
-                                            bitmap = bmp.asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .background(ElectricBlue.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                        )
-                                    }
 
-                                    if (folder.showAppLabels) {
-                                        Text(
-                                            text = item.getDisplayName(),
-                                            fontSize = 8.sp,
-                                            color = Color.White,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.width(36.dp),
-                                            textAlign = TextAlign.Center
-                                        )
+                val maxDisplay = (folder.columns * folder.rows).coerceIn(1, 10)
+                val displayApps = apps.take(maxDisplay)
+
+                if (displayApps.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No apps selected", fontSize = 11.sp, color = Color.Gray)
+                    }
+                } else {
+                    val rows = displayApps.chunked(folder.columns.coerceAtLeast(1))
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        rows.forEach { rowApps ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                rowApps.forEach { item ->
+                                    val bmp = getIcon(item.packageName)
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        if (bmp != null) {
+                                            Image(
+                                                bitmap = bmp.asImageBitmap(),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .background(ElectricBlue.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                            )
+                                        }
+
+                                        if (folder.showAppLabels) {
+                                            Text(
+                                                text = item.getDisplayName(),
+                                                fontSize = 8.sp,
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.width(36.dp),
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
                                     }
                                 }
                             }

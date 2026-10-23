@@ -55,4 +55,9 @@
     <string name="step_1">1. Long press an empty area on your home screen</string>
     <string name="step_2">2. Select Widgets</string>
     <string name="step_3">3. Locate Folder Station and drag it to your screen</string>
+    <string name="auto_update_desc">Refresh widgets immediately on edits</string>
+    <string name="about_app">About App</string>
+    <string name="about_desc">Version, developer and credits</string>
+    <string name="developer_label">Developer</string>
+    <string name="credits_label">Credits</string>
 </resources>
