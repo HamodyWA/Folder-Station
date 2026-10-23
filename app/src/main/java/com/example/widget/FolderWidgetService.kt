@@ -45,9 +45,14 @@ class FolderRemoteViewsFactory(
         try {
             val db = AppDatabase.getInstance(context)
             val dao = db.folderDao()
-            // Look for folder explicitly linked to this widget ID
-            val folder = dao.getFolderForWidgetIdSync(appWidgetId.toString())
-                ?: dao.getAllFoldersSync().firstOrNull()
+
+            val folderId = dao.getFolderIdForWidgetSync(appWidgetId)
+            val folder = if (!folderId.isNullOrBlank()) {
+                dao.getFolderByIdSync(folderId)
+            } else {
+                dao.getAllFoldersSync().firstOrNull { it.getWidgetIdList().contains(appWidgetId) }
+                    ?: dao.getAllFoldersSync().firstOrNull()
+            }
 
             currentFolder = folder
             appItems = folder?.getApps() ?: emptyList()

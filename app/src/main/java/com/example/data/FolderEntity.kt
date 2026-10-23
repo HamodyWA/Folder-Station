@@ -32,15 +32,16 @@ data class FolderEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
-    enum class ShapeType {
-        ROUNDED_RECT,
-        ROUNDED_SQUARE,
-        CIRCLE,
-        MINIMAL_TRANSPARENT,
-        MATERIAL,
-        LIST,
-        LARGE_ICON,
-        BORDERED
+    enum class ShapeType(val displayName: String) {
+        ROUNDED_RECT("Rounded Rect"),
+        SQUARE("Square"),
+        CIRCLE("Circle"),
+        LARGE_ROUNDED("Large Rounded"),
+        MATERIAL("Material"),
+        MINIMAL("Minimal"),
+        LIST("List"),
+        LARGE_ICON("Large Icon"),
+        BORDER("Border")
     }
 
     fun getApps(): List<FolderAppItem> {

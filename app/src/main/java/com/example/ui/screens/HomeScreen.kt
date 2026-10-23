@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,34 +9,38 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,7 +59,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,25 +84,7 @@ fun HomeScreen(
     var folderToDelete by remember { mutableStateOf<FolderEntity?>(null) }
 
     Scaffold(
-        containerColor = BrandNavyDark,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onCreateFolder,
-                containerColor = ElectricBlue,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.testTag("create_folder_fab")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_folder))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.create_folder), fontWeight = FontWeight.Bold)
-                }
-            }
-        }
+        containerColor = BrandNavyDark
     ) { padding ->
         Column(
             modifier = Modifier
@@ -108,11 +92,11 @@ fun HomeScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            // Header Bar
+            // Header: Logo, App Title, Subtitle & Settings Icon
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 14.dp),
+                    .padding(top = 10.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -121,8 +105,8 @@ fun HomeScreen(
                         painter = painterResource(R.drawable.ic_folder_station_logo),
                         contentDescription = "Folder Station Logo",
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     )
                     Spacer(Modifier.width(10.dp))
                     Column {
@@ -133,120 +117,174 @@ fun HomeScreen(
                             color = Color.White
                         )
                         Text(
-                            text = "${folders.size} folder widgets created",
+                            text = "Organize Your Apps, Your Way",
                             fontSize = 12.sp,
-                            color = NeonCyan
+                            color = Color(0xFF818CF8),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
 
-                IconButton(onClick = { viewModel.setTab(NavigationTab.SETTINGS) }) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.LightGray)
+                IconButton(
+                    onClick = { viewModel.setTab(NavigationTab.SETTINGS) },
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(BrandNavyElevated, CircleShape)
+                ) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.LightGray,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
-            // Quick Tutorial Hint Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = BrandNavyElevated),
-                border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+                // Hero Banner
+                item(span = { GridItemSpan(2) }) {
+                    Card(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(GlowingViolet.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable { onCreateFolder() },
+                        colors = CardDefaults.cardColors(containerColor = BrandNavyCard),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
                     ) {
-                        Icon(Icons.Default.Home, contentDescription = null, tint = GlowingViolet, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Add Widgets to Home Screen", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Tap 'Pin to Home' on any folder card or long press empty desktop", fontSize = 11.sp, color = Color.LightGray)
-                    }
-                }
-            }
-
-            // Folders List
-            if (folders.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = ElectricBlue.copy(alpha = 0.4f),
-                            modifier = Modifier.size(72.dp)
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = stringResource(R.string.no_folders_title),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(R.string.no_folders_desc),
-                            fontSize = 13.sp,
-                            color = Color.LightGray,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(20.dp))
-                        Button(
-                            onClick = onCreateFolder,
-                            colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
-                            shape = RoundedCornerShape(12.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF0F1B3B),
+                                            Color(0xFF1E1742)
+                                        )
+                                    )
+                                )
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.create_folder))
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(NeonCyan, ElectricBlue)
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.width(14.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Create Amazing Folder Widgets",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = "Make your home screen cleaner and more organized.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = NeonCyan,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(folders, key = { it.id }) { folder ->
-                        FolderCard(
-                            folder = folder,
-                            viewModel = viewModel,
-                            onEdit = { onEditFolder(folder) },
-                            onPin = { viewModel.pinFolderToHome(folder) },
-                            onDuplicate = { viewModel.duplicateFolder(folder) },
-                            onDelete = { folderToDelete = folder }
-                        )
+
+                // "My Folders" Section Header with Badge & Create Button
+                item(span = { GridItemSpan(2) }) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "My Folders",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(BrandNavyElevated)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${folders.size}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = NeonCyan
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = onCreateFolder,
+                            shape = RoundedCornerShape(18.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 14.dp,
+                                vertical = 6.dp
+                            ),
+                            modifier = Modifier.testTag("create_folder_btn")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Create Folder", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
-                    item {
-                        Spacer(Modifier.height(80.dp)) // Padding for FAB
-                    }
+                }
+
+                // 2-Column Grid of Folder Cards
+                items(folders, key = { it.id }) { folder ->
+                    FolderGridCard(
+                        folder = folder,
+                        viewModel = viewModel,
+                        onEdit = { onEditFolder(folder) },
+                        onPin = { viewModel.pinFolderToHome(folder) },
+                        onDuplicate = { viewModel.duplicateFolder(folder) },
+                        onDelete = { folderToDelete = folder }
+                    )
+                }
+
+                item(span = { GridItemSpan(2) }) {
+                    Spacer(Modifier.height(30.dp))
                 }
             }
         }
     }
 
-    // Confirm Delete Dialog
+    // Delete Confirmation Dialog
     if (folderToDelete != null) {
         val folder = folderToDelete!!
         AlertDialog(
@@ -274,7 +312,7 @@ fun HomeScreen(
 }
 
 @Composable
-fun FolderCard(
+fun FolderGridCard(
     folder: FolderEntity,
     viewModel: MainViewModel,
     onEdit: () -> Unit,
@@ -282,158 +320,180 @@ fun FolderCard(
     onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     val apps = folder.getApps()
-    val widgetCount = folder.getWidgetIdList().size
 
-    val bgColor = try {
-        Color(android.graphics.Color.parseColor(folder.backgroundColorHex)).copy(alpha = folder.backgroundOpacity)
-    } catch (e: Exception) {
-        Color(0xFF11162E)
-    }
-
-    val endColor = if (folder.isGradient) {
-        try {
-            Color(android.graphics.Color.parseColor(folder.gradientEndColorHex)).copy(alpha = folder.backgroundOpacity)
-        } catch (e: Exception) {
-            bgColor
-        }
-    } else bgColor
-
-    val borderColor = try {
+    val badgeColor = try {
         Color(android.graphics.Color.parseColor(folder.borderColorHex))
     } catch (e: Exception) {
         ElectricBlue
     }
 
+    val cardBg = try {
+        Color(android.graphics.Color.parseColor(folder.backgroundColorHex)).copy(alpha = folder.backgroundOpacity)
+    } catch (e: Exception) {
+        Color(0xFF11162E)
+    }
+
+    val cardEnd = if (folder.isGradient) {
+        try {
+            Color(android.graphics.Color.parseColor(folder.gradientEndColorHex)).copy(alpha = folder.backgroundOpacity)
+        } catch (e: Exception) {
+            cardBg
+        }
+    } else cardBg
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(20.dp))
             .clickable { onEdit() },
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = BrandNavyCard),
         border = androidx.compose.foundation.BorderStroke(1.dp, BrandNavyBorder)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(10.dp)
+        ) {
+            // Folder Preview Mockup
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Brush.verticalGradient(listOf(cardBg, cardEnd)))
+                    .border(1.dp, badgeColor.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .padding(8.dp)
             ) {
-                // Mini Folder Preview Icon
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Brush.verticalGradient(listOf(bgColor, endColor)))
-                        .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-                        .padding(4.dp)
-                ) {
-                    val previewApps = apps.take(4)
-                    if (previewApps.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Folder, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(24.dp))
-                        }
-                    } else {
-                        val chunks = previewApps.chunked(2)
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            chunks.forEach { rowApps ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    rowApps.forEach { appItem ->
-                                        val bmp = viewModel.appScanner.getAppIcon(appItem.packageName, 48)
-                                        if (bmp != null) {
-                                            Image(
-                                                bitmap = bmp.asImageBitmap(),
-                                                contentDescription = null,
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                            )
-                                        } else {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .background(ElectricBlue.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                            )
-                                        }
+                val previewApps = apps.take(4)
+                if (previewApps.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = badgeColor.copy(alpha = 0.7f),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                } else {
+                    val chunks = previewApps.chunked(2)
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceEvenly,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        chunks.forEach { rowApps ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                rowApps.forEach { appItem ->
+                                    val bmp = viewModel.appScanner.getAppIcon(appItem.packageName, 64)
+                                    if (bmp != null) {
+                                        Image(
+                                            bitmap = bmp.asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .background(ElectricBlue.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                        )
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.height(8.dp))
+
+            // Bottom Info: Folder Badge + Title + App Count + 3-Dots Menu
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(badgeColor)
+                )
+
+                Spacer(Modifier.width(6.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = folder.name,
-                        fontSize = 17.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "${apps.size} apps • ${folder.columns}×${folder.rows} grid • ${folder.folderShape.replace("_", " ").lowercase()}",
-                        fontSize = 12.sp,
-                        color = NeonCyan
+                        text = "${apps.size} apps",
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8)
                     )
-                    if (widgetCount > 0) {
-                        Text(
-                            text = "Active on $widgetCount home widget(s)",
-                            fontSize = 11.sp,
-                            color = GlowingViolet,
-                            fontWeight = FontWeight.Medium
+                }
+
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = Color.LightGray,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                }
 
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = ElectricBlue)
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Action row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onPin,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
-                ) {
-                    Icon(Icons.Default.Home, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.add_to_home_screen), fontSize = 11.sp, maxLines = 1)
-                }
-
-                IconButton(
-                    onClick = onDuplicate,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(BrandNavyElevated, RoundedCornerShape(8.dp))
-                ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Duplicate", tint = Color.LightGray, modifier = Modifier.size(16.dp))
-                }
-
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(BrandNavyElevated, RoundedCornerShape(8.dp))
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFFF5252), modifier = Modifier.size(16.dp))
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.background(BrandNavyElevated)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit", color = Color.White) },
+                            onClick = {
+                                menuExpanded = false
+                                onEdit()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = ElectricBlue) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to Home Screen", color = NeonCyan) },
+                            onClick = {
+                                menuExpanded = false
+                                onPin()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Home, contentDescription = null, tint = NeonCyan) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Duplicate", color = Color.White) },
+                            onClick = {
+                                menuExpanded = false
+                                onDuplicate()
+                            },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.LightGray) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = Color(0xFFFF5252)) },
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFFF5252)) }
+                        )
+                    }
                 }
             }
         }

@@ -109,6 +109,7 @@ class FolderConfigureActivity : ComponentActivity() {
         val coroutineScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         coroutineScope.launch {
             val dao = AppDatabase.getInstance(this@FolderConfigureActivity).folderDao()
+            dao.bindWidget(com.example.data.WidgetBindingEntity(widgetId = appWidgetId, folderId = folder.id))
             val updated = folder.addWidgetId(appWidgetId)
             dao.updateFolder(updated)
 

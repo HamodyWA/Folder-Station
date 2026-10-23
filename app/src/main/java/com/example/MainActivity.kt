@@ -8,26 +8,20 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -40,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,8 +41,7 @@ import com.example.ui.screens.FolderEditorScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.PresetsScreen
 import com.example.ui.screens.SettingsScreen
-import com.example.ui.screens.ShortcutsScreen
-import com.example.ui.theme.BrandNavyBorder
+import com.example.ui.screens.WidgetsScreen
 import com.example.ui.theme.BrandNavyCard
 import com.example.ui.theme.BrandNavyDark
 import com.example.ui.theme.ElectricBlue
@@ -84,12 +76,10 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
 
         val folderId = intent.getStringExtra("folder_id")
+        val appWidgetId = intent.getIntExtra("app_widget_id", -1)
+
         if (!folderId.isNullOrBlank()) {
-            val folders = viewModel.folders.value
-            val match = folders.find { it.id == folderId }
-            if (match != null) {
-                viewModel.openEditFolder(match)
-            }
+            viewModel.openEditFolderById(folderId, if (appWidgetId != -1) appWidgetId else null)
         }
 
         val createWidgetId = intent.getIntExtra("create_for_widget_id", -1)
@@ -106,8 +96,6 @@ fun MainAppContent(viewModel: MainViewModel) {
     val isEditing by viewModel.isEditing.collectAsStateWithLifecycle()
     val editingFolder by viewModel.editingFolder.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
-    val isLoadingApps by viewModel.isLoadingApps.collectAsStateWithLifecycle()
     val toastMessage by viewModel.messageToast.collectAsStateWithLifecycle()
 
     LaunchedEffect(toastMessage) {
@@ -136,6 +124,7 @@ fun MainAppContent(viewModel: MainViewModel) {
     } else {
         Scaffold(
             containerColor = BrandNavyDark,
+            contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
                 NavigationBar(
                     containerColor = BrandNavyCard,
@@ -144,10 +133,10 @@ fun MainAppContent(viewModel: MainViewModel) {
                     modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
                 ) {
                     val navItems = listOf(
-                        Triple(NavigationTab.HOME, stringResource(R.string.nav_home), Icons.Default.GridView),
-                        Triple(NavigationTab.PRESETS, stringResource(R.string.nav_presets), Icons.Default.AutoAwesome),
-                        Triple(NavigationTab.SHORTCUTS, stringResource(R.string.nav_shortcuts), Icons.Default.Apps),
-                        Triple(NavigationTab.SETTINGS, stringResource(R.string.nav_settings), Icons.Default.Settings)
+                        Triple(NavigationTab.HOME, "Home", Icons.Default.Home),
+                        Triple(NavigationTab.TEMPLATES, "Templates", Icons.Default.GridView),
+                        Triple(NavigationTab.WIDGETS, "Widgets", Icons.Default.Widgets),
+                        Triple(NavigationTab.SETTINGS, "Settings", Icons.Default.Settings)
                     )
 
                     navItems.forEach { (tab, title, icon) ->
@@ -166,6 +155,7 @@ fun MainAppContent(viewModel: MainViewModel) {
                                 Text(
                                     text = title,
                                     fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selected) NeonCyan else Color.LightGray
                                 )
                             },
@@ -192,19 +182,19 @@ fun MainAppContent(viewModel: MainViewModel) {
                             onEditFolder = { viewModel.openEditFolder(it) }
                         )
                     }
-                    NavigationTab.PRESETS -> {
+                    NavigationTab.TEMPLATES -> {
                         PresetsScreen(
                             onUsePreset = { preset ->
                                 viewModel.openCreateFolder(preset)
                             }
                         )
                     }
-                    NavigationTab.SHORTCUTS -> {
-                        ShortcutsScreen(
-                            installedApps = installedApps,
-                            isLoading = isLoadingApps,
-                            onCreateFolderWithApps = { apps ->
-                                viewModel.openCreateFolder(initialApps = apps)
+                    NavigationTab.WIDGETS -> {
+                        WidgetsScreen(
+                            folders = folders,
+                            viewModel = viewModel,
+                            onPinWidget = { folder ->
+                                viewModel.pinFolderToHome(folder)
                             }
                         )
                     }

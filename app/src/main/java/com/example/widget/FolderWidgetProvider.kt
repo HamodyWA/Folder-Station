@@ -3,6 +3,7 @@ package com.example.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -14,11 +15,32 @@ import com.example.MainActivity
 import com.example.R
 import com.example.data.AppDatabase
 import com.example.data.FolderEntity
+import com.example.data.WidgetBindingEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class FolderWidgetProvider : AppWidgetProvider() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+
+        if (intent.action == ACTION_WIDGET_PINNED) {
+            val pinnedFolderId = intent.getStringExtra(EXTRA_PINNED_FOLDER_ID)
+            val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+
+            if (!pinnedFolderId.isNullOrBlank() && widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val db = AppDatabase.getInstance(context)
+                    val dao = db.folderDao()
+                    dao.bindWidget(WidgetBindingEntity(widgetId = widgetId, folderId = pinnedFolderId))
+
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    updateAppWidget(context, appWidgetManager, widgetId)
+                }
+            }
+        }
+    }
 
     override fun onUpdate(
         context: Context,
@@ -45,13 +67,8 @@ class FolderWidgetProvider : AppWidgetProvider() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val dao = AppDatabase.getInstance(context).folderDao()
-                val folders = dao.getAllFoldersSync()
                 for (widgetId in appWidgetIds) {
-                    for (folder in folders) {
-                        if (folder.getWidgetIdList().contains(widgetId)) {
-                            dao.updateFolder(folder.removeWidgetId(widgetId))
-                        }
-                    }
+                    dao.unbindWidget(widgetId)
                 }
             } catch (e: Exception) {
                 // Ignore cleanup error
@@ -60,6 +77,9 @@ class FolderWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+        const val ACTION_WIDGET_PINNED = "com.example.folderstation.ACTION_WIDGET_PINNED"
+        const val EXTRA_PINNED_FOLDER_ID = "pinned_folder_id"
+
         fun updateAppWidget(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -68,13 +88,39 @@ class FolderWidgetProvider : AppWidgetProvider() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val dao = AppDatabase.getInstance(context).folderDao()
-                    val folder = dao.getFolderForWidgetIdSync(appWidgetId.toString())
-                        ?: dao.getAllFoldersSync().firstOrNull()
-                        ?: FolderEntity(name = context.getString(R.string.app_name))
 
-                    val views = RemoteViews(context.packageName, R.layout.folder_widget_layout)
+                    // Resolve bound folder for this specific widget ID
+                    val folderId = dao.getFolderIdForWidgetSync(appWidgetId)
+                    val folder = if (!folderId.isNullOrBlank()) {
+                        dao.getFolderByIdSync(folderId)
+                    } else {
+                        // Fallback: search in legacy or first folder
+                        dao.getAllFoldersSync().firstOrNull { it.getWidgetIdList().contains(appWidgetId) }
+                            ?: dao.getAllFoldersSync().firstOrNull()
+                    } ?: FolderEntity(name = context.getString(R.string.app_name))
 
-                    // 1. Render custom background
+                    // Select layout resource matching shape and grid columns
+                    val layoutId = when {
+                        folder.folderShape == FolderEntity.ShapeType.CIRCLE.name -> {
+                            R.layout.folder_widget_layout_circular
+                        }
+                        folder.columns == 1 -> {
+                            R.layout.folder_widget_layout_1col
+                        }
+                        folder.columns == 2 -> {
+                            R.layout.folder_widget_layout_2col
+                        }
+                        folder.columns == 4 -> {
+                            R.layout.folder_widget_layout_4col
+                        }
+                        else -> {
+                            R.layout.folder_widget_layout
+                        }
+                    }
+
+                    val views = RemoteViews(context.packageName, layoutId)
+
+                    // 1. Render custom background with exact shape and styling
                     val bgBitmap = WidgetBitmapRenderer.renderBackground(
                         widthPx = 450,
                         heightPx = 450,
@@ -95,10 +141,11 @@ class FolderWidgetProvider : AppWidgetProvider() {
                         views.setViewVisibility(R.id.widget_header, View.GONE)
                     }
 
-                    // 3. Header / Edit Button Intent (opens MainActivity to edit this folder)
+                    // 3. Header / Edit Button Intent (opens MainActivity targeting this folder and widget ID)
                     val editIntent = Intent(context, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                         putExtra("folder_id", folder.id)
+                        putExtra("app_widget_id", appWidgetId)
                         putExtra("from_widget", true)
                     }
                     val editPendingIntent = PendingIntent.getActivity(
@@ -113,8 +160,7 @@ class FolderWidgetProvider : AppWidgetProvider() {
                     // 4. RemoteViewsService Intent for GridView
                     val serviceIntent = Intent(context, FolderWidgetService::class.java).apply {
                         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                        // Make intent unique per widget
-                        data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
+                        data = Uri.parse("widget://$appWidgetId/${folder.id}/${folder.updatedAt}")
                     }
                     views.setRemoteAdapter(R.id.widget_grid, serviceIntent)
 
@@ -148,7 +194,7 @@ class FolderWidgetProvider : AppWidgetProvider() {
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val componentName = android.content.ComponentName(context, FolderWidgetProvider::class.java)
+            val componentName = ComponentName(context, FolderWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
             for (id in appWidgetIds) {
                 updateAppWidget(context, appWidgetManager, id)

@@ -8,28 +8,32 @@ import com.example.data.FolderAppItem
 import com.example.data.FolderEntity
 import com.example.data.FolderPreset
 import com.example.data.FolderRepository
+import com.example.data.WidgetBindingEntity
 import com.example.model.InstalledAppInfo
 import com.example.service.AppScanner
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 enum class NavigationTab {
     HOME,
-    PRESETS,
-    SHORTCUTS,
+    TEMPLATES,
+    WIDGETS,
     SETTINGS
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val db = AppDatabase.getInstance(application)
     private val repository = FolderRepository(
         context = application,
-        folderDao = AppDatabase.getInstance(application).folderDao()
+        folderDao = db.folderDao()
     )
     val appScanner = AppScanner(application)
 
@@ -51,6 +55,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _editingFolder = MutableStateFlow<FolderEntity?>(null)
     val editingFolder: StateFlow<FolderEntity?> = _editingFolder.asStateFlow()
+
+    private var _editingWidgetId: Int? = null
 
     // Settings
     private val _isDarkTheme = MutableStateFlow(true)
@@ -91,6 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openCreateFolder(preset: FolderPreset? = null, initialApps: List<FolderAppItem> = emptyList()) {
+        _editingWidgetId = null
         val newFolder = if (preset != null) {
             preset.toFolderEntity("New Folder").withApps(initialApps)
         } else {
@@ -103,14 +110,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isEditing.value = true
     }
 
-    fun openEditFolder(folder: FolderEntity) {
+    fun openEditFolder(folder: FolderEntity, widgetId: Int? = null) {
+        _editingWidgetId = widgetId
         _editingFolder.value = folder
         _isEditing.value = true
+    }
+
+    fun openEditFolderById(folderId: String, widgetId: Int? = null) {
+        viewModelScope.launch {
+            val folder = repository.getFolderByIdSync(folderId)
+            if (folder != null) {
+                _editingWidgetId = widgetId
+                _editingFolder.value = folder
+                _isEditing.value = true
+            }
+        }
     }
 
     fun closeEditor() {
         _isEditing.value = false
         _editingFolder.value = null
+        _editingWidgetId = null
     }
 
     fun updateEditingFolder(updated: FolderEntity) {
@@ -155,10 +175,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveCurrentFolder() {
         val folder = _editingFolder.value ?: return
         viewModelScope.launch {
-            repository.saveFolder(folder)
-            _isEditing.value = false
-            _editingFolder.value = null
-            _messageToast.value = "Folder saved successfully!"
+            // If linked to a specific widget ID, record binding
+            val wId = _editingWidgetId
+            if (wId != null && wId != -1) {
+                withContext(Dispatchers.IO) {
+                    db.folderDao().bindWidget(WidgetBindingEntity(widgetId = wId, folderId = folder.id))
+                }
+            }
+
+            val success = repository.saveFolder(folder)
+            if (success) {
+                _isEditing.value = false
+                _editingFolder.value = null
+                _editingWidgetId = null
+                _messageToast.value = "Widget configuration saved!"
+            } else {
+                _messageToast.value = "Error: Could not save configuration."
+            }
         }
     }
 

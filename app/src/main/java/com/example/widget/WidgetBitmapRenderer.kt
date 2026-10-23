@@ -12,12 +12,12 @@ import com.example.data.FolderEntity
 object WidgetBitmapRenderer {
 
     fun renderBackground(
-        widthPx: Int = 400,
-        heightPx: Int = 400,
+        widthPx: Int = 450,
+        heightPx: Int = 450,
         folder: FolderEntity
     ): Bitmap {
-        val safeWidth = maxOf(widthPx, 100)
-        val safeHeight = maxOf(heightPx, 100)
+        val safeWidth = maxOf(widthPx, 120)
+        val safeHeight = maxOf(heightPx, 120)
         val bitmap = Bitmap.createBitmap(safeWidth, safeHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -27,7 +27,13 @@ object WidgetBitmapRenderer {
             Color.parseColor("#11162E")
         }
 
-        val alphaInt = (folder.backgroundOpacity.coerceIn(0f, 1f) * 255).toInt()
+        val effectiveOpacity = if (folder.folderShape == FolderEntity.ShapeType.MINIMAL.name) {
+            folder.backgroundOpacity.coerceIn(0.1f, 0.45f)
+        } else {
+            folder.backgroundOpacity.coerceIn(0.1f, 1f)
+        }
+
+        val alphaInt = (effectiveOpacity * 255).toInt()
         val startColorWithAlpha = Color.argb(
             alphaInt,
             Color.red(baseColor),
@@ -61,8 +67,12 @@ object WidgetBitmapRenderer {
             )
         }
 
-        val borderThicknessPx = (folder.borderThicknessDp * 2.5f)
-        val strokePaint = if (folder.borderThicknessDp > 0) {
+        val thicknessMultiplier = if (folder.folderShape == FolderEntity.ShapeType.BORDER.name) 4.0f else 2.5f
+        val borderThicknessPx = if (folder.borderThicknessDp > 0 || folder.folderShape == FolderEntity.ShapeType.BORDER.name) {
+            maxOf(folder.borderThicknessDp * thicknessMultiplier, 4f)
+        } else 0f
+
+        val strokePaint = if (borderThicknessPx > 0f) {
             val strokeColor = try {
                 Color.parseColor(folder.borderColorHex)
             } catch (e: Exception) {
@@ -78,24 +88,72 @@ object WidgetBitmapRenderer {
         val inset = borderThicknessPx / 2f
         val rect = RectF(inset, inset, safeWidth - inset, safeHeight - inset)
 
-        val radiusPx = when (folder.folderShape) {
+        when (folder.folderShape) {
             FolderEntity.ShapeType.CIRCLE.name -> {
-                minOf(safeWidth, safeHeight) / 2f
+                val cx = safeWidth / 2f
+                val cy = safeHeight / 2f
+                val radius = minOf(safeWidth, safeHeight) / 2f - inset
+                canvas.drawCircle(cx, cy, radius, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawCircle(cx, cy, radius, strokePaint)
+                }
             }
-            FolderEntity.ShapeType.ROUNDED_SQUARE.name -> {
-                folder.cornerRadiusDp * 3.0f
+            FolderEntity.ShapeType.SQUARE.name -> {
+                val radiusPx = 12f
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
             }
-            FolderEntity.ShapeType.MINIMAL_TRANSPARENT.name -> {
-                folder.cornerRadiusDp * 2.5f
+            FolderEntity.ShapeType.LARGE_ROUNDED.name -> {
+                val radiusPx = minOf(safeWidth, safeHeight) * 0.35f
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
             }
-            else -> {
-                folder.cornerRadiusDp * 2.5f
+            FolderEntity.ShapeType.MATERIAL.name -> {
+                val radiusPx = 28f * 2.5f
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
             }
-        }
-
-        canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
-        if (strokePaint != null) {
-            canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+            FolderEntity.ShapeType.MINIMAL.name -> {
+                val radiusPx = (folder.cornerRadiusDp * 2.5f).coerceAtLeast(16f)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
+            }
+            FolderEntity.ShapeType.LIST.name -> {
+                val radiusPx = 22f * 2.5f
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
+            }
+            FolderEntity.ShapeType.LARGE_ICON.name -> {
+                val radiusPx = 20f * 2.5f
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
+            }
+            FolderEntity.ShapeType.BORDER.name -> {
+                val radiusPx = (folder.cornerRadiusDp * 2.5f).coerceAtLeast(20f)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
+            }
+            else -> { // ROUNDED_RECT
+                val radiusPx = (folder.cornerRadiusDp * 2.5f).coerceAtLeast(16f)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fillPaint)
+                if (strokePaint != null) {
+                    canvas.drawRoundRect(rect, radiusPx, radiusPx, strokePaint)
+                }
+            }
         }
 
         return bitmap
